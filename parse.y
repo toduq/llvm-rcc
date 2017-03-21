@@ -1,5 +1,7 @@
 class RccParser
 rule
+  statement                 : additive_expression
+                                {result = {type: :statement, value: val[0]}}
   additive_expression       : additive_expression additive_operator multiplicative_expression
                                 {result = {type: :operator, value: val[1], left: val[0], right: val[2]}}
                             | multiplicative_expression
