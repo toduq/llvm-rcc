@@ -32,9 +32,15 @@ class Compiler
 			case ast[:value]
 			when '+' then
 				ir << "%#{scope[:var_id]} = add nsw i32 %#{left_id}, %#{right_id}"
-				scope[:var_id] += 1
-				scope[:var_id] - 1
+			when '-' then
+				ir << "%#{scope[:var_id]} = sub nsw i32 %#{left_id}, %#{right_id}"
+			when '*' then
+				ir << "%#{scope[:var_id]} = mul nsw i32 %#{left_id}, %#{right_id}"
+			when '/' then
+				ir << "%#{scope[:var_id]} = sdiv i32 %#{left_id}, %#{right_id}"
 			end
+			scope[:var_id] += 1
+			scope[:var_id] - 1
 		end
 	end
 
