@@ -22,4 +22,6 @@ assert 'int a=1+2; int b=2; return a*b;' '6'
 
 assert 'return add(1,2);' '3'
 
+assert "return 'A';" '65'
+
 echo 'Test passed'

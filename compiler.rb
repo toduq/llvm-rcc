@@ -45,6 +45,8 @@ class Compiler
 		# constants
 		when :integer_constant then
 			LLVM::Int(ast[:value])
+		when :char_constant then
+			LLVM::Int(ast[:value].ord)
 		when :variable then
 			@main_builder.load(scope[:vars][ast[:name]])
 		# operators
