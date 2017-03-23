@@ -38,6 +38,10 @@ class Compiler
 			pointer = @main_builder.pointer_cast(pointer, Pointer(LLVM::Int8))
 			@main_builder.call(@printf, pointer, value)
 			@main_builder.ret(value)
+		when :call then
+			func = scope[:func][ast[:name]]
+			args = ast[:args].map{|arg| build_ir(arg, scope) }
+			@main_builder.call(func, *args)
 		# constants
 		when :integer_constant then
 			LLVM::Int(ast[:value])
@@ -82,11 +86,18 @@ class Compiler
 	private
 	def default_scope
 		{
-			vars: {}
+			vars: {},
+			func: {'printf' => @printf, 'add' => @add}
 		}
 	end
 	def header
 		@printf = @mod.functions.add("printf", [Pointer(LLVM::Int8)], Int, varargs: true)
+		@add = @mod.functions.add("add", [Int, Int], Int) do |func, x, y|
+			func.basic_blocks.append.build do |b|
+				sum = b.add(x, y)
+				b.ret(sum)
+			end
+		end
 	end
 
 	def footer

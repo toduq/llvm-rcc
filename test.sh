@@ -16,8 +16,10 @@ function assert {
 
 assert 'return 1+2;' '3'
 assert 'return 1+2*3;' '7'
-assert 'int a; a=3; return a;'
-assert 'int a=1; int b=2; return a*b;' '2'
-assert 'int a=1+2; return a;' '3'
+
+assert 'int a; a=3; return a;' '3'
+assert 'int a=1+2; int b=2; return a*b;' '6'
+
+assert 'return add(1,2);' '3'
 
 echo 'Test passed'
