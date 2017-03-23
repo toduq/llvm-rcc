@@ -1,3 +1,6 @@
+test: parse.rb
+	./test.sh
+
 racc-c: parse.rb
 racc: parse.rb
 	ruby parse.rb

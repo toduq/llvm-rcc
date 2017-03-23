@@ -1,66 +1,77 @@
+require 'llvm'
+require 'llvm/core'
+
 class Compiler
-	attr_reader :ast, :ir
+	include LLVM
+
+	attr_reader :ast, :mod
 
 	def initialize(ast)
 		@ast = ast
-		@ir = []
+
+		@mod = Module.new("rcc")
+		@main = @mod.functions.add("main", [], Int)
+		@main_block = @main.basic_blocks.append
+		@main_builder = Builder.new
+		@main_builder.position_at_end(@main_block)
 	end
 
 	def compile
 		header
-		build_ir(@ast, @ir, default_scope)
+		build_ir(@ast, default_scope)
 		footer
 		self
 	end
 
-	def build_ir(ast, ir, scope=nil)
+	def build_ir(ast, scope)
 		case ast[:type]
 		# controls
 		when :compound_statement then
-			id = ast[:list].map{|statement|
-				build_ir(statement, ir, scope)
-			}.last
-			ir << "call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str, i32 0, i32 0), i32 %#{id})"
-			ir << "ret i32 %#{id}"
+			ast[:list].each do |statement|
+				build_ir(statement, scope)
+			end
 		when :statement then
-			build_ir(ast[:value], ir, scope)
+			build_ir(ast[:value], scope)
+		when :return then
+			value = build_ir(ast[:value], scope)
+			pointer = @main_builder.global_string("%d\n")
+			pointer = @main_builder.pointer_cast(pointer, Pointer(LLVM::Int8))
+			@main_builder.call(@printf, pointer, value)
+			@main_builder.ret(value)
 		# constants
 		when :integer_constant then
-			ir << "%#{scope[:reg_id]} = alloca i32, align 4"
-			ir << "store i32 #{ast[:value]}, i32* %#{scope[:reg_id]}, align 4"
-			ir << "%#{scope[:reg_id]+1} = load i32, i32* %#{scope[:reg_id]}, align 4"
-			scope[:reg_id] += 2
-			scope[:reg_id] - 1
+			LLVM::Int(ast[:value])
 		when :variable then
-			"#{ast[:name]}_#{scope[:vars][ast[:name]]}"
+			@main_builder.load(scope[:vars][ast[:name]])
 		# operators
 		when :operator then
-			left_id = build_ir(ast[:left], ir, scope)
-			right_id = build_ir(ast[:right], ir, scope)
+			left_value = build_ir(ast[:left], scope) unless ast[:value] == '='
+			right_value = build_ir(ast[:right], scope)
 			case ast[:value]
 			when '+' then
-				ir << "%#{scope[:reg_id]} = add nsw i32 %#{left_id}, %#{right_id}"
+				@main_builder.add(left_value, right_value)
 			when '-' then
-				ir << "%#{scope[:reg_id]} = sub nsw i32 %#{left_id}, %#{right_id}"
+				@main_builder.sub(left_value, right_value)
 			when '*' then
-				ir << "%#{scope[:reg_id]} = mul nsw i32 %#{left_id}, %#{right_id}"
+				@main_builder.mul(left_value, right_value)
 			when '/' then
-				ir << "%#{scope[:reg_id]} = sdiv i32 %#{left_id}, %#{right_id}"
+				@main_builder.sdiv(left_value, right_value)
+			when '=' then
+				@main_builder.store(right_value, scope[:vars][ast[:left]])
+				right_value
 			else
 				raise "not implemented operator #{ast[:value]}"
 			end
-			scope[:reg_id] += 1
-			scope[:reg_id] - 1
 		# memories
 		when :declaration then
 			case ast[:type_name]
 			when 'int'
-				scope[:vars][ast[:name]] = 1
-				ir << "%#{ast[:name]} = alloca i32, align 4"
-				unless ast[:value].nil?
-					id = build_ir(ast[:value], ir, scope)
-					ir << "store i32 %#{id}, i32* %#{ast[:name]}, align 4"
-					ir << "%#{ast[:name]}_1 = load i32, i32* %#{ast[:name]}, align 4"
+				pointer = @main_builder.alloca(Int, ast[:name])
+				scope[:vars][ast[:name]] = pointer
+				if ast.has_key?(:value)
+					var = build_ir(ast[:value], scope)
+					@main_builder.store(var, scope[:vars][ast[:name]])
+					var
 				end
 			else
 				raise "not implemented declaration type #{ast[:type_name]}"
@@ -71,17 +82,13 @@ class Compiler
 	private
 	def default_scope
 		{
-			reg_id: 1,
 			vars: {}
 		}
 	end
 	def header
-		@ir << '@.str = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1'
-		@ir << "define i32 @main() #0 {"
+		@printf = @mod.functions.add("printf", [Pointer(LLVM::Int8)], Int, varargs: true)
 	end
 
 	def footer
-		@ir << "}"
-		@ir << "declare i32 @printf(i8*, ...) #1"
 	end
 end

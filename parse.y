@@ -4,12 +4,22 @@ rule
                                 {result = {type: :compound_statement, list: [val[0]]}}
                             | compound_statement statement
                                 {result[:list] << val[1]}
-  statement                 : expression semicolon
+  statement                 : expression ';'
                                 {result = {type: :statement, value: val[0]}}
-                            | declaration semicolon
+                            | declaration ';'
+                                {result = {type: :statement, value: val[0]}}
+                            | return_statement ';'
                                 {result = {type: :statement, value: val[0]}}
 
+  return_statement          : 'return' expression
+                                {result = {type: :return, value: val[1]}}
+
   expression                : additive_expression
+                            | assignment_operator
+
+  assignment_operator       : var_name '=' expression
+                                {result = {type: :operator, value: val[1], left: val[0], right: val[2]}}
+
   additive_expression       : additive_expression additive_operator multiplicative_expression
                                 {result = {type: :operator, value: val[1], left: val[0], right: val[2]}}
                             | multiplicative_expression
@@ -17,17 +27,18 @@ rule
                                 {result = {type: :operator, value: val[1], left: val[0], right: val[2]}}
                             | primary_expression
 
-  declaration               : type_name identifier
+  declaration               : type_name var_name
                                 {result = {type: :declaration, type_name: val[0], name: val[1]}}
-                            | type_name identifier assignment_operator expression
+                            | type_name var_name '=' expression
                                 {result = {type: :declaration, type_name: val[0], name: val[1], value: val[3]}}
 
-  type_name                 : identifier
   primary_expression        : integer_constant
                                 {result = {type: :integer_constant, value: val[0].to_i}}
-                            | identifier
+                            | var_name
                                 {result = {type: :variable, name: val[0]}}
 
+  type_name                 : identifier
+  var_name                  : identifier
 end
 
 ---- header
@@ -42,13 +53,11 @@ def parse(str)
   s = StringScanner.new(str)
   @q = []
   until s.eos?
+    s.scan(/return|;|,|=/)     ? @q << [s.matched, s.matched] :
     s.scan(/[-+]/)             ? @q << [:additive_operator, s.matched] :
     s.scan(/[*\/]/)            ? @q << [:multiplicative_operator, s.matched] :
     s.scan(/[*\/]/)            ? @q << [:multiplicative_operator, s.matched] :
-    s.scan(/=/)                ? @q << [:assignment_operator, s.matched] :
     s.scan(/\d+/)              ? @q << [:integer_constant, s.matched] :
-    s.scan(/;/)                ? @q << [:semicolon, s.matched] :
-    s.scan(/,/)                ? @q << [:comma, s.matched] :
     s.scan(/[A-z_][A-z0-9_]*/) ? @q << [:identifier, s.matched] :
     s.scan(/[ \n\r\t]/) ? nil :
         (raise "scanner error")
