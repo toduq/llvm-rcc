@@ -46,6 +46,8 @@ rule
                                 {result = {type: :integer_constant, value: val[0].to_i}}
                             | single_quote
                                 {result = {type: :char_constant, value: val[0]}}
+                            | double_quote
+                                {result = {type: :string_constant, value: val[0]}}
                             | var_name
                                 {result = {type: :variable, name: val[0]}}
 
@@ -67,7 +69,8 @@ def parse(str)
   @q = []
   until s.eos?
     s.scan(/return|;|,|=|\(|\)/) ? @q << [s.matched, s.matched] :
-    s.scan(/'([^']+)'/)            ? @q << [:single_quote, s.matched[1]] :
+    s.scan(/'([^']+)'/)          ? @q << [:single_quote, s.matched[1..-2]] :
+    s.scan(/"([^"]+)"/)          ? @q << [:double_quote, s.matched[1..-2]] :
     s.scan(/[-+]/)               ? @q << [:additive_operator, s.matched] :
     s.scan(/[*\/]/)              ? @q << [:multiplicative_operator, s.matched] :
     s.scan(/[*\/]/)              ? @q << [:multiplicative_operator, s.matched] :

@@ -34,9 +34,6 @@ class Compiler
 			build_ir(ast[:value], scope)
 		when :return then
 			value = build_ir(ast[:value], scope)
-			pointer = @main_builder.global_string("%d\n")
-			pointer = @main_builder.pointer_cast(pointer, Pointer(LLVM::Int8))
-			@main_builder.call(@printf, pointer, value)
 			@main_builder.ret(value)
 		when :call then
 			func = scope[:func][ast[:name]]
@@ -46,8 +43,15 @@ class Compiler
 		when :integer_constant then
 			LLVM::Int(ast[:value])
 		when :char_constant then
+			raise "illigal expression '#{ast[:value]}'" if ast[:value].length > 1
 			LLVM::Int(ast[:value].ord)
+		when :string_constant then
+			str = LLVM::ConstantArray.string(ast[:value])
+			pointer = @main_builder.alloca(str.type)
+			@main_builder.store(str, pointer)
+			@main_builder.pointer_cast(pointer, Pointer(LLVM::Int8))
 		when :variable then
+			raise "use of undeclared variable #{ast[:name]}" unless scope[:vars].has_key?(ast[:name])
 			@main_builder.load(scope[:vars][ast[:name]])
 		# operators
 		when :operator then
